@@ -28,6 +28,32 @@ export class AiController {
     }
   }
 
+  async initializeHeadOfDepartment() {
+    try {
+      return await openai.beta.assistants.create({
+        name: ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
+        instructions: BASE_INSTRUCTIONS.HEAD_OF_DEPARTMENT,
+        tools: [{ type: 'code_interpreter' }],
+        model: OPENAI_MODEL.GPT4_LATEST,
+      });
+    } catch (error) {
+      console.log('ERROR initializeHeadOfDepartment :::', error);
+    }
+  }
+
+  async initializeContentManager() {
+    try {
+      return await openai.beta.assistants.create({
+        name: ASSISTANT_NAME.CONTENT_MANAGER,
+        instructions: BASE_INSTRUCTIONS.CONTENT_MANAGER,
+        tools: [{ type: 'code_interpreter' }],
+        model: OPENAI_MODEL.GPT4_LATEST,
+      });
+    } catch (error) {
+      console.log('ERROR initializeContentManager :::', error);
+    }
+  }
+
   async createThread() {
     try {
       return await openai.beta.threads.create();
@@ -57,7 +83,7 @@ export class AiController {
           .createAndStream(threadId, {
             assistant_id: assistantId,
           })
-          .on('textDelta', (textDelta, snapshot) => {
+          .on('textDelta', (textDelta) => {
             fullResponse += textDelta.value;
           })
           .on('end', () => {

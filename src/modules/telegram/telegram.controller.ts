@@ -69,13 +69,61 @@ export class TelegramController {
         },
       });
 
-      // Message to select needed theme
-      const themesToSelect =
+      // Handlers for Head of Department
+      const headOfDepartment =
+        await this.aiController.initializeHeadOfDepartment();
+      const threadForHeadOfDepartment = await this.aiController.createThread();
+
+      const themesToChoose =
         BOT_MESSAGES.RESULT_FROM_SMM.replace(
           '{assistant_name}',
           ASSISTANT_NAME.SMM_MANAGER,
         ) + themesForPost;
-      await ctx.reply(themesToSelect);
+
+      await ctx.reply(themesToChoose);
+
+      await this.aiController.addMessageToThread({
+        threadId: threadForHeadOfDepartment.id,
+        message: {
+          role: Role.User,
+          content: themesToChoose,
+        },
+      });
+
+      const resultFromHeadOfDepartment = await this.aiController.runAssistant({
+        threadId: threadForHeadOfDepartment.id,
+        assistantId: headOfDepartment.id,
+      });
+
+      const resultFromHeadOfDepartmentMessageToUser =
+        BOT_MESSAGES.RESULT_FROM_HEAD.replace(
+          '{assistant_name}',
+          ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
+        ) + resultFromHeadOfDepartment;
+      await ctx.reply(resultFromHeadOfDepartmentMessageToUser);
+
+      // Handlers for Content Manager
+      const contentManager = await this.aiController.initializeContentManager();
+      const threadForContentManager = await this.aiController.createThread();
+
+      const themeToCreateContent =
+        BOT_MESSAGES.COMMANDS_FOR_AI.CREATE_CONTENT +
+        resultFromHeadOfDepartment;
+
+      await this.aiController.addMessageToThread({
+        threadId: threadForContentManager.id,
+        message: {
+          role: Role.User,
+          content: themeToCreateContent,
+        },
+      });
+
+      const resultFromContentManager = await this.aiController.runAssistant({
+        threadId: threadForContentManager.id,
+        assistantId: contentManager.id,
+      });
+
+      await ctx.reply(resultFromContentManager);
     } catch (error) {
       console.log('ERROR createPost :::', error);
     }
