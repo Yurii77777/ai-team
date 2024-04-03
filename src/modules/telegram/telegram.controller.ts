@@ -88,14 +88,12 @@ export class TelegramController {
       });
 
       const headOfDepartmentThread = await this.aiController.createThread();
+
       const themesToChoose =
         BOT_MESSAGES.RESULT_FROM_SMM.replace(
           '{assistant_name}',
           ASSISTANT_NAME.SMM_MANAGER,
         ) + generatedThemes;
-
-      // Response to bot's admin
-      await ctx.reply(themesToChoose);
 
       await this.aiController.addMessageToThread({
         threadId: headOfDepartmentThread.id,
@@ -119,15 +117,6 @@ export class TelegramController {
         );
       }
 
-      const resultFromHeadOfDepartmentMessageToUser =
-        BOT_MESSAGES.RESULT_FROM_HEAD.replace(
-          '{assistant_name}',
-          ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
-        ) + headOfDepartmentResult;
-
-      // Response to bot's admin
-      await ctx.reply(resultFromHeadOfDepartmentMessageToUser);
-
       // Content Manager
       const contentManager = await this.aiController.initializeAssistant({
         name: ASSISTANT_NAME.CONTENT_MANAGER,
@@ -140,6 +129,7 @@ export class TelegramController {
 
       const themeToCreateContent =
         BOT_MESSAGES.COMMANDS_FOR_AI.CREATE_CONTENT + headOfDepartmentResult;
+
       await this.aiController.addMessageToThread({
         threadId: contentManagerThread.id,
         message: {
@@ -162,7 +152,65 @@ export class TelegramController {
         );
       }
 
-      await ctx.reply(contentManagerResult);
+      // Chief Editor
+      const chiefEditor = await this.aiController.initializeAssistant({
+        name: ASSISTANT_NAME.CHIEF_EDITOR,
+        instructions: BASE_INSTRUCTIONS.CHIEF_EDITOR,
+        tools: [{ type: Tool.CODE_INTERPRETER }],
+        model: OPENAI_MODEL.GPT4_LATEST,
+      });
+
+      const chiefEditorThread = await this.aiController.createThread();
+      await this.aiController.addMessageToThread({
+        threadId: chiefEditorThread.id,
+        message: {
+          role: Role.User,
+          content: contentManagerResult,
+        },
+      });
+
+      const chiefEditorResult = await this.aiController.runAssistant({
+        threadId: chiefEditorThread.id,
+        assistantId: chiefEditor.id,
+      });
+
+      if (!chiefEditorResult) {
+        return await ctx.reply(
+          BOT_MESSAGES.ERROR.CHIEF_EDITOR.replace(
+            '{assistant_name}',
+            ASSISTANT_NAME.CHIEF_EDITOR,
+          ),
+        );
+      }
+
+      const post = await ctx.telegram.sendMessage(
+        process.env.TELEGRAM_PUBLIC_CHANNEL,
+        chiefEditorResult,
+        {
+          // TODO: Check Telegram decorators for parce mode
+          parse_mode: 'html',
+        },
+      );
+
+      if (!post) {
+        return await ctx.reply(BOT_MESSAGES.ERROR.POST_WAS_NOT_ADDED);
+      }
+
+      const postUrl =
+        'https://t.me/' +
+        process.env.TELEGRAM_PUBLIC_CHANNEL.replace('@', '') +
+        '/' +
+        post.message_id;
+
+      const messageToReply = BOT_MESSAGES.POST_MESSAGE.replace(
+        '{theme}',
+        headOfDepartmentResult,
+      ).replace('{URL}', `<a href="${postUrl}">посиланням</a>`);
+
+      await ctx.reply(messageToReply),
+        {
+          parse_mode: 'html',
+        };
     } catch (error) {
       console.log('ERROR createPost :::', error);
     }

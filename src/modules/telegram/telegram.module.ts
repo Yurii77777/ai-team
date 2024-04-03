@@ -14,6 +14,9 @@ import { AiController } from '../ai/ai.controller';
     TelegrafModule.forRoot({
       middlewares: [session()],
       token: process.env.TELEGRAM_BOT_TOKEN,
+      options: {
+        handlerTimeout: 9_000_000,
+      },
     }),
   ],
   controllers: [],
