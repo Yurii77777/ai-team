@@ -17,3 +17,18 @@ export interface RunAssistantParams {
   threadId: string;
   assistantId: string;
 }
+
+export interface InitializeAssistantParams {
+  name: string;
+  instructions: string;
+  tools: Array<ToolType>;
+  model: string;
+}
+
+export enum Tool {
+  CODE_INTERPRETER = 'code_interpreter',
+}
+
+type ToolType = {
+  type: Tool;
+};

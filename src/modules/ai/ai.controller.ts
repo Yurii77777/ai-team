@@ -5,52 +5,24 @@ const openai = new OpenAI({
 });
 
 import {
-  ASSISTANT_NAME,
-  BASE_INSTRUCTIONS,
-  OPENAI_MODEL,
-} from 'src/config/ai.config';
-import {
   AddMessageToThreadParams,
+  InitializeAssistantParams,
   RunAssistantParams,
 } from 'src/types/ai.types';
 
 export class AiController {
-  async initializeSMMmanager() {
-    try {
-      return await openai.beta.assistants.create({
-        name: ASSISTANT_NAME.SMM_MANAGER,
-        instructions: BASE_INSTRUCTIONS.SMM_MANAGER,
-        tools: [{ type: 'code_interpreter' }],
-        model: OPENAI_MODEL.GPT4_LATEST,
-      });
-    } catch (error) {
-      console.log('ERROR initializeSMMmanager :::', error);
-    }
-  }
+  async initializeAssistant(options: InitializeAssistantParams) {
+    const { name, instructions, tools, model } = options;
 
-  async initializeHeadOfDepartment() {
     try {
       return await openai.beta.assistants.create({
-        name: ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
-        instructions: BASE_INSTRUCTIONS.HEAD_OF_DEPARTMENT,
-        tools: [{ type: 'code_interpreter' }],
-        model: OPENAI_MODEL.GPT4_LATEST,
+        name,
+        instructions,
+        tools: tools,
+        model: model,
       });
     } catch (error) {
-      console.log('ERROR initializeHeadOfDepartment :::', error);
-    }
-  }
-
-  async initializeContentManager() {
-    try {
-      return await openai.beta.assistants.create({
-        name: ASSISTANT_NAME.CONTENT_MANAGER,
-        instructions: BASE_INSTRUCTIONS.CONTENT_MANAGER,
-        tools: [{ type: 'code_interpreter' }],
-        model: OPENAI_MODEL.GPT4_LATEST,
-      });
-    } catch (error) {
-      console.log('ERROR initializeContentManager :::', error);
+      console.log('ERROR initializeAssistant :::', error);
     }
   }
 

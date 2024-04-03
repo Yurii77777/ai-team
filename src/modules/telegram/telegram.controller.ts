@@ -6,9 +6,13 @@ import { AiController } from '../ai/ai.controller';
 import { COMMANDS } from './telegram.commands';
 import { BOT_MESSAGES } from './telegram.messages';
 
-import { Role } from 'src/types/ai.types';
+import { Role, Tool } from 'src/types/ai.types';
 
-import { ASSISTANT_NAME } from 'src/config/ai.config';
+import {
+  ASSISTANT_NAME,
+  BASE_INSTRUCTIONS,
+  OPENAI_MODEL,
+} from 'src/config/ai.config';
 
 @Update()
 export class TelegramController {
@@ -33,11 +37,17 @@ export class TelegramController {
   @Command('create_post')
   async createPost(ctx): Promise<any> {
     try {
-      const smmManager = await this.aiController.initializeSMMmanager();
+      // SMM manager
+      const smmManager = await this.aiController.initializeAssistant({
+        name: ASSISTANT_NAME.SMM_MANAGER,
+        instructions: BASE_INSTRUCTIONS.SMM_MANAGER,
+        tools: [{ type: Tool.CODE_INTERPRETER }],
+        model: OPENAI_MODEL.GPT4_LATEST,
+      });
 
-      const threadForSMMmanager = await this.aiController.createThread();
+      const smmManagerThread = await this.aiController.createThread();
       await this.aiController.addMessageToThread({
-        threadId: threadForSMMmanager.id,
+        threadId: smmManagerThread.id,
         message: {
           role: Role.User,
           content: BOT_MESSAGES.COMMANDS_FOR_AI.GENERATE_THEMES,
@@ -47,12 +57,12 @@ export class TelegramController {
       // Response to bot's admin
       await ctx.reply(BOT_MESSAGES.TASK_ADDED);
 
-      const themesForPost = await this.aiController.runAssistant({
-        threadId: threadForSMMmanager.id,
+      const generatedThemes = await this.aiController.runAssistant({
+        threadId: smmManagerThread.id,
         assistantId: smmManager.id,
       });
 
-      if (!themesForPost) {
+      if (!generatedThemes) {
         return await ctx.reply(
           BOT_MESSAGES.ERROR.SMM_MANAGER.replace(
             '{assistant_name}',
@@ -62,68 +72,97 @@ export class TelegramController {
       }
 
       await this.aiController.addMessageToThread({
-        threadId: threadForSMMmanager.id,
+        threadId: smmManagerThread.id,
         message: {
           role: Role.Assistant,
-          content: themesForPost,
+          content: generatedThemes,
         },
       });
 
-      // Handlers for Head of Department
-      const headOfDepartment =
-        await this.aiController.initializeHeadOfDepartment();
-      const threadForHeadOfDepartment = await this.aiController.createThread();
+      // Head of Department
+      const headOfDepartment = await this.aiController.initializeAssistant({
+        name: ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
+        instructions: BASE_INSTRUCTIONS.HEAD_OF_DEPARTMENT,
+        tools: [{ type: Tool.CODE_INTERPRETER }],
+        model: OPENAI_MODEL.GPT4_LATEST,
+      });
 
+      const headOfDepartmentThread = await this.aiController.createThread();
       const themesToChoose =
         BOT_MESSAGES.RESULT_FROM_SMM.replace(
           '{assistant_name}',
           ASSISTANT_NAME.SMM_MANAGER,
-        ) + themesForPost;
+        ) + generatedThemes;
 
+      // Response to bot's admin
       await ctx.reply(themesToChoose);
 
       await this.aiController.addMessageToThread({
-        threadId: threadForHeadOfDepartment.id,
+        threadId: headOfDepartmentThread.id,
         message: {
           role: Role.User,
           content: themesToChoose,
         },
       });
 
-      const resultFromHeadOfDepartment = await this.aiController.runAssistant({
-        threadId: threadForHeadOfDepartment.id,
+      const headOfDepartmentResult = await this.aiController.runAssistant({
+        threadId: headOfDepartmentThread.id,
         assistantId: headOfDepartment.id,
       });
+
+      if (!headOfDepartmentResult) {
+        return await ctx.reply(
+          BOT_MESSAGES.ERROR.HEAD_OF_DEPARTMENT.replace(
+            '{assistant_name}',
+            ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
+          ),
+        );
+      }
 
       const resultFromHeadOfDepartmentMessageToUser =
         BOT_MESSAGES.RESULT_FROM_HEAD.replace(
           '{assistant_name}',
           ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
-        ) + resultFromHeadOfDepartment;
+        ) + headOfDepartmentResult;
+
+      // Response to bot's admin
       await ctx.reply(resultFromHeadOfDepartmentMessageToUser);
 
-      // Handlers for Content Manager
-      const contentManager = await this.aiController.initializeContentManager();
-      const threadForContentManager = await this.aiController.createThread();
+      // Content Manager
+      const contentManager = await this.aiController.initializeAssistant({
+        name: ASSISTANT_NAME.CONTENT_MANAGER,
+        instructions: BASE_INSTRUCTIONS.CONTENT_MANAGER,
+        tools: [{ type: Tool.CODE_INTERPRETER }],
+        model: OPENAI_MODEL.GPT4_LATEST,
+      });
+
+      const contentManagerThread = await this.aiController.createThread();
 
       const themeToCreateContent =
-        BOT_MESSAGES.COMMANDS_FOR_AI.CREATE_CONTENT +
-        resultFromHeadOfDepartment;
-
+        BOT_MESSAGES.COMMANDS_FOR_AI.CREATE_CONTENT + headOfDepartmentResult;
       await this.aiController.addMessageToThread({
-        threadId: threadForContentManager.id,
+        threadId: contentManagerThread.id,
         message: {
           role: Role.User,
           content: themeToCreateContent,
         },
       });
 
-      const resultFromContentManager = await this.aiController.runAssistant({
-        threadId: threadForContentManager.id,
+      const contentManagerResult = await this.aiController.runAssistant({
+        threadId: contentManagerThread.id,
         assistantId: contentManager.id,
       });
 
-      await ctx.reply(resultFromContentManager);
+      if (!contentManagerResult) {
+        return await ctx.reply(
+          BOT_MESSAGES.ERROR.CONTENT_MANAGER.replace(
+            '{assistant_name}',
+            ASSISTANT_NAME.CONTENT_MANAGER,
+          ),
+        );
+      }
+
+      await ctx.reply(contentManagerResult);
     } catch (error) {
       console.log('ERROR createPost :::', error);
     }
