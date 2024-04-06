@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Context, Telegraf } from 'telegraf';
 
 import { AiController } from '../ai/ai.controller';
 
@@ -9,14 +10,20 @@ import {
 } from '../../config/ai.config';
 import { Role, Tool } from '../../types/ai.types';
 import { BOT_MESSAGES } from './telegram.messages';
+import { InjectBot } from 'nestjs-telegraf';
 
 @Injectable()
 export class TelegramUtils {
-  constructor(private readonly aiController: AiController) {}
+  constructor(
+    @InjectBot() private readonly bot: Telegraf<Context>,
+    private readonly aiController: AiController,
+  ) {}
 
-  async createPost(
-    ctx,
-  ): Promise<{ success: boolean; post: string; theme: string }> {
+  async createPost(): Promise<{
+    success: boolean;
+    post: string;
+    theme: string;
+  }> {
     const result = {
       success: false,
       theme: '',
@@ -42,7 +49,8 @@ export class TelegramUtils {
       });
 
       if (!generatedThemes) {
-        await ctx.reply(
+        await this.bot.telegram.sendMessage(
+          process.env.TELEGRAM_ADMIN_CHAT_ID,
           BOT_MESSAGES.ERROR.SMM_MANAGER.replace(
             '{assistant_name}',
             ASSISTANT_NAME.SMM_MANAGER,
@@ -78,7 +86,8 @@ export class TelegramUtils {
       });
 
       if (!headOfDepartmentResult) {
-        await ctx.reply(
+        await this.bot.telegram.sendMessage(
+          process.env.TELEGRAM_ADMIN_CHAT_ID,
           BOT_MESSAGES.ERROR.HEAD_OF_DEPARTMENT.replace(
             '{assistant_name}',
             ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
@@ -111,7 +120,8 @@ export class TelegramUtils {
       });
 
       if (!contentManagerResult) {
-        await ctx.reply(
+        await this.bot.telegram.sendMessage(
+          process.env.TELEGRAM_ADMIN_CHAT_ID,
           BOT_MESSAGES.ERROR.CONTENT_MANAGER.replace(
             '{assistant_name}',
             ASSISTANT_NAME.CONTENT_MANAGER,
@@ -139,7 +149,8 @@ export class TelegramUtils {
       });
 
       if (!chiefEditorResult) {
-        await ctx.reply(
+        await this.bot.telegram.sendMessage(
+          process.env.TELEGRAM_ADMIN_CHAT_ID,
           BOT_MESSAGES.ERROR.CHIEF_EDITOR.replace(
             '{assistant_name}',
             ASSISTANT_NAME.CHIEF_EDITOR,

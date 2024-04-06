@@ -1,5 +1,7 @@
 import { Command, InjectBot, Start, Update } from 'nestjs-telegraf';
 import { Context, Telegraf } from 'telegraf';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const cron = require('node-cron');
 
 import { TelegramUtils } from './telegram.utils';
 
@@ -13,6 +15,10 @@ export class TelegramController {
     private readonly telegramUtils: TelegramUtils,
   ) {
     this.bot.telegram.setMyCommands(COMMANDS);
+
+    cron.schedule('0 6 * * *', async () => {
+      await this.telegramUtils.createPost();
+    });
   }
 
   @Start()
@@ -44,7 +50,7 @@ export class TelegramController {
         success,
         post: createdPost,
         theme,
-      } = await this.telegramUtils.createPost(ctx);
+      } = await this.telegramUtils.createPost();
 
       if (!success) {
         await ctx.reply(BOT_MESSAGES.ERROR.CREATE_POST);
