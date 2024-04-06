@@ -7,4 +7,8 @@ export const COMMANDS = [
     command: '/create_post',
     description: 'Створити пост',
   },
+  {
+    command: '/create_image',
+    description: 'Створити зображення',
+  },
 ];

@@ -8,7 +8,7 @@ import {
   AddMessageToThreadParams,
   InitializeAssistantParams,
   RunAssistantParams,
-} from 'src/types/ai.types';
+} from '../../types/ai.types';
 
 export class AiController {
   async initializeAssistant(options: InitializeAssistantParams) {
@@ -67,6 +67,29 @@ export class AiController {
       });
     } catch (error) {
       console.log('ERROR runAssistant :::', error);
+    }
+  }
+
+  async imageAssistant(options: {
+    model;
+    prompt: string;
+    numberOfImages?: number;
+  }) {
+    const { model, prompt } = options;
+
+    try {
+      // here is error in the Docs for Dall-E 3
+      const response = await openai.images.generate({
+        model,
+        prompt,
+        n: 1,
+        // you can choose different sizes
+        size: '1024x1024',
+      });
+
+      return response.data[0].url;
+    } catch (error) {
+      console.log('ERROR imageAssistant :::', error);
     }
   }
 }

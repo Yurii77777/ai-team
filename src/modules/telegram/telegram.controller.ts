@@ -4,15 +4,18 @@ import { Context, Telegraf } from 'telegraf';
 const cron = require('node-cron');
 
 import { TelegramUtils } from './telegram.utils';
+import { AiController } from '../ai/ai.controller';
 
 import { COMMANDS } from './telegram.commands';
 import { BOT_MESSAGES } from './telegram.messages';
+import { OPENAI_MODEL } from '../../config/ai.config';
 
 @Update()
 export class TelegramController {
   constructor(
     @InjectBot() private readonly bot: Telegraf<Context>,
     private readonly telegramUtils: TelegramUtils,
+    private readonly aiController: AiController,
   ) {
     this.bot.telegram.setMyCommands(COMMANDS);
 
@@ -84,6 +87,23 @@ export class TelegramController {
       });
     } catch (error) {
       console.log('ERROR createPost :::', error);
+    }
+  }
+
+  @Command('create_image')
+  async createImage(): Promise<any> {
+    const request =
+      'Новий пост на тему: Оптимізація веб-ресурсів для пошукових систем: базові SEO техніки для розробників';
+
+    try {
+      const img = await this.aiController.imageAssistant({
+        model: OPENAI_MODEL.DALLE_LATEST,
+        prompt: request,
+      });
+
+      console.log('img', img);
+    } catch (error) {
+      console.log('ERROR createImage :::', error);
     }
   }
 }
