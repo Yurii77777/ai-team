@@ -4,6 +4,7 @@ import { TelegrafModule } from 'nestjs-telegraf';
 import { session } from 'telegraf';
 
 import { TelegramController } from './telegram.controller';
+import { TelegramUtils } from './telegram.utils';
 import { AiController } from '../ai/ai.controller';
 
 @Module({
@@ -20,6 +21,6 @@ import { AiController } from '../ai/ai.controller';
     }),
   ],
   controllers: [],
-  providers: [TelegramController, AiController],
+  providers: [TelegramController, TelegramUtils, AiController],
 })
 export class TelegramModule {}

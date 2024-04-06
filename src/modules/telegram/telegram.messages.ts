@@ -9,6 +9,8 @@ export const BOT_MESSAGES = {
   RESULT_FROM_HEAD:
     '{assistant_name} прийняла рішення розкрити дану тему 👇\n\n',
   ERROR: {
+    PERMISSIONS: 'У доступі відмовлено! 🤣',
+    CREATE_POST: 'Нажаль, пост не опубліковано ... трястя його матері 😤',
     SMM_MANAGER: '{assistant_name}, SMM манагер не впоралася 🤦',
     HEAD_OF_DEPARTMENT: '{assistant_name}, HEAD не змогла прийняти рішення 🤷',
     CONTENT_MANAGER:
