@@ -251,4 +251,75 @@ export class TelegramUtils {
 
     return updatedPost;
   }
+
+  async sendPost() {
+    try {
+      const { success, post: createdPost, theme } = await this.createPost();
+
+      if (!success) {
+        return await this.bot.telegram.sendMessage(
+          process.env.TELEGRAM_ADMIN_CHAT_ID,
+          BOT_MESSAGES.ERROR.CREATE_POST,
+        );
+      }
+
+      // create a poster for the post
+      const poster = await this.aiController.imageAssistant({
+        model: OPENAI_MODEL.DALLE_LATEST,
+        prompt: theme,
+      });
+
+      let telegramPostData = null;
+
+      // send post without poster to the Telegram channel
+      if (!poster) {
+        telegramPostData = await this.bot.telegram.sendMessage(
+          process.env.TELEGRAM_PUBLIC_CHANNEL,
+          createdPost,
+          {
+            parse_mode: 'Markdown',
+          },
+        );
+      }
+      // send post with poster to the Telegram channel
+      else {
+        telegramPostData = await this.bot.telegram.sendPhoto(
+          process.env.TELEGRAM_PUBLIC_CHANNEL,
+          poster,
+          {
+            caption: `${createdPost}`,
+            parse_mode: 'Markdown',
+          },
+        );
+      }
+
+      if (!telegramPostData) {
+        return await this.bot.telegram.sendMessage(
+          process.env.TELEGRAM_ADMIN_CHAT_ID,
+          BOT_MESSAGES.ERROR.POST_WAS_NOT_ADDED,
+        );
+      }
+
+      const postUrl =
+        'https://t.me/' +
+        process.env.TELEGRAM_PUBLIC_CHANNEL.replace('@', '') +
+        '/' +
+        telegramPostData.message_id;
+
+      const messageToReply = BOT_MESSAGES.POST_MESSAGE.replace(
+        '{theme}',
+        theme,
+      ).replace('{URL}', `<a href="${postUrl}">посиланням</a>`);
+
+      await this.bot.telegram.sendMessage(
+        process.env.TELEGRAM_ADMIN_CHAT_ID,
+        messageToReply,
+        {
+          parse_mode: 'HTML',
+        },
+      );
+    } catch (error) {
+      console.log('sendPost error :::', error);
+    }
+  }
 }

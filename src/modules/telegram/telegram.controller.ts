@@ -19,8 +19,12 @@ export class TelegramController {
   ) {
     this.bot.telegram.setMyCommands(COMMANDS);
 
-    cron.schedule('0 6 * * *', async () => {
-      await this.telegramUtils.createPost();
+    cron.schedule('0 8 * * *', async () => {
+      try {
+        await this.telegramUtils.sendPost();
+      } catch (error) {
+        console.log('error', error);
+      }
     });
   }
 
@@ -75,7 +79,7 @@ export class TelegramController {
           process.env.TELEGRAM_PUBLIC_CHANNEL,
           createdPost,
           {
-            parse_mode: 'html',
+            parse_mode: 'Markdown',
           },
         );
       }
@@ -86,7 +90,7 @@ export class TelegramController {
           poster,
           {
             caption: `${createdPost}`,
-            parse_mode: 'HTML',
+            parse_mode: 'Markdown',
           },
         );
       }
