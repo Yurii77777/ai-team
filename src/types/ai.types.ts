@@ -29,6 +29,6 @@ export enum Tool {
   CODE_INTERPRETER = 'code_interpreter',
 }
 
-type ToolType = {
+export type ToolType = {
   type: Tool;
 };

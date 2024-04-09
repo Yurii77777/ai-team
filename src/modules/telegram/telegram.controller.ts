@@ -48,6 +48,7 @@ export class TelegramController {
 
       // Response to bot's admin
       await ctx.reply(BOT_MESSAGES.TASK_ADDED);
+      await ctx.reply(BOT_MESSAGES.LOADER);
 
       const {
         success,
@@ -56,18 +57,42 @@ export class TelegramController {
       } = await this.telegramUtils.createPost();
 
       if (!success) {
-        await ctx.reply(BOT_MESSAGES.ERROR.CREATE_POST);
+        await ctx.deleteMessage();
+        return await ctx.reply(BOT_MESSAGES.ERROR.CREATE_POST);
       }
 
-      const post = await ctx.telegram.sendMessage(
-        process.env.TELEGRAM_PUBLIC_CHANNEL,
-        createdPost,
-        {
-          parse_mode: 'html',
-        },
-      );
+      // create a poster for the post
+      const poster = await this.aiController.imageAssistant({
+        model: OPENAI_MODEL.DALLE_LATEST,
+        prompt: theme,
+      });
 
-      if (!post) {
+      let telegramPostData = null;
+
+      // send post without poster to the Telegram channel
+      if (!poster) {
+        telegramPostData = await ctx.telegram.sendMessage(
+          process.env.TELEGRAM_PUBLIC_CHANNEL,
+          createdPost,
+          {
+            parse_mode: 'html',
+          },
+        );
+      }
+      // send post with poster to the Telegram channel
+      else {
+        telegramPostData = await ctx.telegram.sendPhoto(
+          process.env.TELEGRAM_PUBLIC_CHANNEL,
+          poster,
+          {
+            caption: `${createdPost}`,
+            parse_mode: 'HTML',
+          },
+        );
+      }
+
+      if (!telegramPostData) {
+        await ctx.deleteMessage();
         return await ctx.reply(BOT_MESSAGES.ERROR.POST_WAS_NOT_ADDED);
       }
 
@@ -75,13 +100,14 @@ export class TelegramController {
         'https://t.me/' +
         process.env.TELEGRAM_PUBLIC_CHANNEL.replace('@', '') +
         '/' +
-        post.message_id;
+        telegramPostData.message_id;
 
       const messageToReply = BOT_MESSAGES.POST_MESSAGE.replace(
         '{theme}',
         theme,
       ).replace('{URL}', `<a href="${postUrl}">посиланням</a>`);
 
+      await ctx.deleteMessage();
       await ctx.reply(messageToReply, {
         parse_mode: 'HTML',
       });

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Context, Telegraf } from 'telegraf';
+import { InjectBot } from 'nestjs-telegraf';
 
 import { AiController } from '../ai/ai.controller';
 
@@ -8,9 +9,15 @@ import {
   BASE_INSTRUCTIONS,
   OPENAI_MODEL,
 } from '../../config/ai.config';
-import { Role, Tool } from '../../types/ai.types';
 import { BOT_MESSAGES } from './telegram.messages';
-import { InjectBot } from 'nestjs-telegraf';
+import { Role, Tool } from '../../types/ai.types';
+import {
+  CheckAndUpdatePostParams,
+  InitializeAssistantParams,
+  RunAssistantParams,
+} from '../../types/telegram.types';
+
+import { POST_LENGTH } from '../../constants/common.constant';
 
 @Injectable()
 export class TelegramUtils {
@@ -160,9 +167,16 @@ export class TelegramUtils {
         return result;
       }
 
+      // Check the length of the post and update it if necessary
+      const checkedPost = await this.checkAndUpdatePost({
+        post: chiefEditorResult,
+        threadId: chiefEditorThread.id,
+        assistantId: chiefEditor.id,
+      });
+
       result['success'] = true;
       result['theme'] = headOfDepartmentResult;
-      result['post'] = chiefEditorResult;
+      result['post'] = checkedPost;
 
       return result;
     } catch (error) {
@@ -170,7 +184,7 @@ export class TelegramUtils {
     }
   }
 
-  async initializeAssistant(options: { name; instructions; tools; model }) {
+  async initializeAssistant(options: InitializeAssistantParams) {
     const { name, instructions, tools, model } = options;
 
     try {
@@ -188,12 +202,7 @@ export class TelegramUtils {
     }
   }
 
-  async runAssistant(options: {
-    threadId: string;
-    assistantId: string;
-    role: Role;
-    message: string;
-  }) {
+  async runAssistant(options: RunAssistantParams) {
     const { threadId, assistantId, role, message } = options;
 
     try {
@@ -212,5 +221,34 @@ export class TelegramUtils {
     } catch (error) {
       console.log('runAssistant error :::', error);
     }
+  }
+
+  async checkAndUpdatePost(options: CheckAndUpdatePostParams) {
+    const { post, threadId, assistantId } = options;
+    let updatedPost = post;
+
+    while (updatedPost.length > POST_LENGTH) {
+      // updated thread witb Chief Editor result
+      await this.aiController.addMessageToThread({
+        threadId,
+        message: {
+          role: Role.Assistant,
+          content: updatedPost,
+        },
+      });
+
+      // add to thread new command === re-write the post
+      updatedPost = await this.runAssistant({
+        threadId: threadId,
+        assistantId,
+        role: Role.User,
+        message: BOT_MESSAGES.REWRITE_POST.replace(
+          '{POST_LENGTH}',
+          String(POST_LENGTH),
+        ),
+      });
+    }
+
+    return updatedPost;
   }
 }
