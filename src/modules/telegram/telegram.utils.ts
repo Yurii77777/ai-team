@@ -30,11 +30,13 @@ export class TelegramUtils {
     success: boolean;
     post: string;
     theme: string;
+    postLongVersion: string;
   }> {
     const result = {
       success: false,
       theme: '',
       post: '',
+      postLongVersion: '',
     };
 
     try {
@@ -177,6 +179,7 @@ export class TelegramUtils {
       result['success'] = true;
       result['theme'] = headOfDepartmentResult;
       result['post'] = checkedPost;
+      result['postLongVersion'] = chiefEditorResult;
 
       return result;
     } catch (error) {
@@ -254,7 +257,12 @@ export class TelegramUtils {
 
   async sendPost() {
     try {
-      const { success, post: createdPost, theme } = await this.createPost();
+      const {
+        success,
+        post: createdPost,
+        theme,
+        postLongVersion,
+      } = await this.createPost();
 
       if (!success) {
         return await this.bot.telegram.sendMessage(
@@ -262,6 +270,15 @@ export class TelegramUtils {
           BOT_MESSAGES.ERROR.CREATE_POST,
         );
       }
+
+      // send full version post
+      await this.bot.telegram.sendMessage(
+        process.env.TELEGRAM_PUBLIC_CHANNEL,
+        postLongVersion,
+        {
+          parse_mode: 'Markdown',
+        },
+      );
 
       // create a poster for the post
       const poster = await this.aiController.imageAssistant({
