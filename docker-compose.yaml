@@ -1,0 +1,37 @@
+version: '3'
+services:
+  backend:
+    build:
+      context: ./
+    container_name: ai-team
+    environment:
+      - TELEGRAM_BOT_TOKEN
+      - OPENAI_API_KEY
+      - TELEGRAM_PUBLIC_CHANNEL
+      - TELEGRAM_ADMIN_CHAT_ID
+      - DATABASE_USERNAME
+      - DATABASE_PASSWORD
+      - DATABASE_NAME
+      - DATABASE_HOST
+    entrypoint: ./docker-entrypoint.sh
+    ports:
+      - 3000:3000
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=${DATABASE_USERNAME}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_DB=${DATABASE_NAME}
+      - POSTGRES_HOST=${DATABASE_HOST}
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+
+volumes:
+  dbdata:
