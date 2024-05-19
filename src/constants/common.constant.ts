@@ -1,1 +1,2 @@
 export const POST_LENGTH = 1020;
+export const MAX_ATTEMPTS_TO_GENERATE_TOPICS = 5;

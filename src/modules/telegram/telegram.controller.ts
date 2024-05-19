@@ -1,9 +1,10 @@
 import { Command, InjectBot, Start, Update } from 'nestjs-telegraf';
 import { Context, Telegraf } from 'telegraf';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const cron = require('node-cron');
+// const cron = require('node-cron');
 
 import { TelegramUtils } from './telegram.utils';
+import { TelegramService } from './telegram.service';
 import { AiController } from '../ai/ai.controller';
 
 import { COMMANDS } from './telegram.commands';
@@ -15,17 +16,18 @@ export class TelegramController {
   constructor(
     @InjectBot() private readonly bot: Telegraf<Context>,
     private readonly telegramUtils: TelegramUtils,
+    private readonly telegramService: TelegramService,
     private readonly aiController: AiController,
   ) {
     this.bot.telegram.setMyCommands(COMMANDS);
 
-    cron.schedule('0 8 * * *', async () => {
-      try {
-        await this.telegramUtils.sendPost();
-      } catch (error) {
-        console.log('error', error);
-      }
-    });
+    // cron.schedule('0 8 * * *', async () => {
+    //   try {
+    //     await this.telegramUtils.sendPost();
+    //   } catch (error) {
+    //     console.log('error', error);
+    //   }
+    // });
   }
 
   @Start()
@@ -54,11 +56,8 @@ export class TelegramController {
       await ctx.reply(BOT_MESSAGES.TASK_ADDED);
       await ctx.reply(BOT_MESSAGES.LOADER);
 
-      const {
-        success,
-        post: createdPost,
-        theme,
-      } = await this.telegramUtils.createPost();
+      const { success, postLongVersion, theme } =
+        await this.telegramUtils.createPost();
 
       if (!success) {
         await ctx.deleteMessage();
@@ -66,39 +65,44 @@ export class TelegramController {
       }
 
       // create a poster for the post
-      const poster = await this.aiController.imageAssistant({
-        model: OPENAI_MODEL.DALLE_LATEST,
-        prompt: theme,
-      });
+      // const poster = await this.aiController.imageAssistant({
+      //   model: OPENAI_MODEL.DALLE_LATEST,
+      //   prompt: theme,
+      // });
 
       let telegramPostData = null;
 
       // send post without poster to the Telegram channel
-      if (!poster) {
-        telegramPostData = await ctx.telegram.sendMessage(
-          process.env.TELEGRAM_PUBLIC_CHANNEL,
-          createdPost,
-          {
-            parse_mode: 'Markdown',
-          },
-        );
-      }
+      // if (!poster) {
+      telegramPostData = await ctx.telegram.sendMessage(
+        process.env.TELEGRAM_PUBLIC_CHANNEL,
+        postLongVersion,
+        {
+          parse_mode: 'Markdown',
+        },
+      );
+      // }
       // send post with poster to the Telegram channel
-      else {
-        telegramPostData = await ctx.telegram.sendPhoto(
-          process.env.TELEGRAM_PUBLIC_CHANNEL,
-          poster,
-          {
-            caption: `${createdPost}`,
-            parse_mode: 'Markdown',
-          },
-        );
-      }
+      // else {
+      //   telegramPostData = await ctx.telegram.sendPhoto(
+      //     process.env.TELEGRAM_PUBLIC_CHANNEL,
+      //     poster,
+      //     {
+      //       caption: `${createdPost}`,
+      //       parse_mode: 'Markdown',
+      //     },
+      //   );
+      // }
 
       if (!telegramPostData) {
         await ctx.deleteMessage();
         return await ctx.reply(BOT_MESSAGES.ERROR.POST_WAS_NOT_ADDED);
       }
+
+      await this.telegramService.updatePost({
+        title: theme,
+        update: { isPosted: true },
+      });
 
       const postUrl =
         'https://t.me/' +
@@ -111,7 +115,7 @@ export class TelegramController {
         theme,
       ).replace('{URL}', `<a href="${postUrl}">посиланням</a>`);
 
-      await ctx.deleteMessage();
+      // await ctx.deleteMessage();
       await ctx.reply(messageToReply, {
         parse_mode: 'HTML',
       });

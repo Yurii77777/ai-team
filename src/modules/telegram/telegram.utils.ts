@@ -3,6 +3,7 @@ import { Context, Telegraf } from 'telegraf';
 import { InjectBot } from 'nestjs-telegraf';
 
 import { AiController } from '../ai/ai.controller';
+import { TelegramService } from './telegram.service';
 
 import {
   ASSISTANT_NAME,
@@ -17,13 +18,18 @@ import {
   RunAssistantParams,
 } from '../../types/telegram.types';
 
-import { POST_LENGTH } from '../../constants/common.constant';
+import { Post } from '../../entities/post.entity';
+import {
+  MAX_ATTEMPTS_TO_GENERATE_TOPICS,
+  POST_LENGTH,
+} from '../../constants/common.constant';
 
 @Injectable()
 export class TelegramUtils {
   constructor(
     @InjectBot() private readonly bot: Telegraf<Context>,
     private readonly aiController: AiController,
+    private readonly telegramService: TelegramService,
   ) {}
 
   async createPost(): Promise<{
@@ -40,69 +46,10 @@ export class TelegramUtils {
     };
 
     try {
-      // initialize SMM manager
-      const { assistant: smmManager, assistantThread: smmManagerThread } =
-        await this.initializeAssistant({
-          name: ASSISTANT_NAME.SMM_MANAGER,
-          instructions: BASE_INSTRUCTIONS.SMM_MANAGER,
-          tools: [{ type: Tool.CODE_INTERPRETER }],
-          model: OPENAI_MODEL.GPT4_LATEST,
-        });
+      const posts = await this.generateThemes();
+      const isPosts = !!posts.length;
 
-      // run SMM manager
-      const generatedThemes = await this.runAssistant({
-        threadId: smmManagerThread.id,
-        assistantId: smmManager.id,
-        role: Role.User,
-        message: BOT_MESSAGES.COMMANDS_FOR_AI.GENERATE_THEMES,
-      });
-
-      if (!generatedThemes) {
-        await this.bot.telegram.sendMessage(
-          process.env.TELEGRAM_ADMIN_CHAT_ID,
-          BOT_MESSAGES.ERROR.SMM_MANAGER.replace(
-            '{assistant_name}',
-            ASSISTANT_NAME.SMM_MANAGER,
-          ),
-        );
-
-        return result;
-      }
-
-      // initialize Head of Department
-      const {
-        assistant: headOfDepartment,
-        assistantThread: headOfDepartmentThread,
-      } = await this.initializeAssistant({
-        name: ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
-        instructions: BASE_INSTRUCTIONS.HEAD_OF_DEPARTMENT,
-        tools: [{ type: Tool.CODE_INTERPRETER }],
-        model: OPENAI_MODEL.GPT4_LATEST,
-      });
-
-      const themesToChoose =
-        BOT_MESSAGES.RESULT_FROM_SMM.replace(
-          '{assistant_name}',
-          ASSISTANT_NAME.SMM_MANAGER,
-        ) + generatedThemes;
-
-      // run Head of Department
-      const headOfDepartmentResult = await this.runAssistant({
-        threadId: headOfDepartmentThread.id,
-        assistantId: headOfDepartment.id,
-        role: Role.User,
-        message: themesToChoose,
-      });
-
-      if (!headOfDepartmentResult) {
-        await this.bot.telegram.sendMessage(
-          process.env.TELEGRAM_ADMIN_CHAT_ID,
-          BOT_MESSAGES.ERROR.HEAD_OF_DEPARTMENT.replace(
-            '{assistant_name}',
-            ASSISTANT_NAME.HEAD_OF_DEPARTMENT,
-          ),
-        );
-
+      if (!isPosts) {
         return result;
       }
 
@@ -118,7 +65,7 @@ export class TelegramUtils {
       });
 
       const themeToCreateContent =
-        BOT_MESSAGES.COMMANDS_FOR_AI.CREATE_CONTENT + headOfDepartmentResult;
+        BOT_MESSAGES.COMMANDS_FOR_AI.CREATE_CONTENT + posts[0].title;
 
       // run Content Manager
       const contentManagerResult = await this.runAssistant({
@@ -140,50 +87,134 @@ export class TelegramUtils {
         return result;
       }
 
-      // initialize Chief Editor
-      const { assistant: chiefEditor, assistantThread: chiefEditorThread } =
+      // // initialize Chief Editor
+      // const { assistant: chiefEditor, assistantThread: chiefEditorThread } =
+      //   await this.initializeAssistant({
+      //     name: ASSISTANT_NAME.CHIEF_EDITOR,
+      //     instructions: BASE_INSTRUCTIONS.CHIEF_EDITOR,
+      //     tools: [{ type: Tool.CODE_INTERPRETER }],
+      //     model: OPENAI_MODEL.GPT4_LATEST,
+      //   });
+
+      // // run Chief Editor
+      // const chiefEditorResult = await this.runAssistant({
+      //   threadId: chiefEditorThread.id,
+      //   assistantId: chiefEditor.id,
+      //   role: Role.User,
+      //   message: contentManagerResult,
+      // });
+
+      // if (!chiefEditorResult) {
+      //   await this.bot.telegram.sendMessage(
+      //     process.env.TELEGRAM_ADMIN_CHAT_ID,
+      //     BOT_MESSAGES.ERROR.CHIEF_EDITOR.replace(
+      //       '{assistant_name}',
+      //       ASSISTANT_NAME.CHIEF_EDITOR,
+      //     ),
+      //   );
+
+      //   return result;
+      // }
+
+      // Check the length of the post and update it if necessary
+      // const checkedPost = await this.checkAndUpdatePost({
+      //   post: chiefEditorResult,
+      //   threadId: chiefEditorThread.id,
+      //   assistantId: chiefEditor.id,
+      // });
+
+      result['success'] = true;
+      result['theme'] = posts[0].title;
+      // result['post'] = checkedPost;
+      result['postLongVersion'] = contentManagerResult;
+
+      return result;
+    } catch (error) {
+      console.log('error', error);
+      return result;
+    }
+  }
+
+  async generateThemes() {
+    try {
+      // Retrieve unpublished post topics from the database
+      let posts = await this.telegramService.getPosts({ isPosted: false });
+      const isPosts = !!posts.length;
+      let attempts = 0;
+
+      if (isPosts) {
+        return posts;
+      }
+
+      // initialize SMM manager
+      const { assistant: smmManager, assistantThread: smmManagerThread } =
         await this.initializeAssistant({
-          name: ASSISTANT_NAME.CHIEF_EDITOR,
-          instructions: BASE_INSTRUCTIONS.CHIEF_EDITOR,
+          name: ASSISTANT_NAME.SMM_MANAGER,
+          instructions: BASE_INSTRUCTIONS.SMM_MANAGER,
           tools: [{ type: Tool.CODE_INTERPRETER }],
           model: OPENAI_MODEL.GPT4_LATEST,
         });
 
-      // run Chief Editor
-      const chiefEditorResult = await this.runAssistant({
-        threadId: chiefEditorThread.id,
-        assistantId: chiefEditor.id,
-        role: Role.User,
-        message: contentManagerResult,
-      });
+      while (!isPosts && attempts < MAX_ATTEMPTS_TO_GENERATE_TOPICS) {
+        attempts++;
 
-      if (!chiefEditorResult) {
-        await this.bot.telegram.sendMessage(
-          process.env.TELEGRAM_ADMIN_CHAT_ID,
-          BOT_MESSAGES.ERROR.CHIEF_EDITOR.replace(
-            '{assistant_name}',
-            ASSISTANT_NAME.CHIEF_EDITOR,
-          ),
-        );
+        // run SMM manager
+        const generatedThemes = await this.runAssistant({
+          threadId: smmManagerThread.id,
+          assistantId: smmManager.id,
+          role: Role.User,
+          message: BOT_MESSAGES.COMMANDS_FOR_AI.GENERATE_THEMES,
+        });
 
-        return result;
+        if (!generatedThemes) {
+          await this.bot.telegram.sendMessage(
+            process.env.TELEGRAM_ADMIN_CHAT_ID,
+            BOT_MESSAGES.ERROR.SMM_MANAGER.replace(
+              '{assistant_name}',
+              ASSISTANT_NAME.SMM_MANAGER,
+            ),
+          );
+
+          return posts;
+        }
+
+        const titlesArray = generatedThemes
+          .split('\n')
+          .map((theme: string) => theme.replace(/^\d+\.\s*/, ''));
+
+        // Retrieve the same post topics from the database
+        const foundPosts =
+          await this.telegramService.getManyPostsByTitle(titlesArray);
+        const isFoundPosts = !!foundPosts.length;
+
+        if (!isFoundPosts) {
+          posts = await this.telegramService.createPosts(
+            titlesArray.map((title) => ({ title, isPosted: false })),
+          );
+        } else {
+          const titlesSet = new Set(foundPosts.map((item: Post) => item.title));
+          const filteredThemes = titlesArray.filter(
+            (title: string) => !titlesSet.has(title),
+          );
+          const isFilteredThemes = !!filteredThemes.length;
+
+          if (isFilteredThemes) {
+            const updatedTopics = filteredThemes.map((theme: string) => {
+              return { title: theme, isPosted: false };
+            });
+
+            posts = await this.telegramService.createPosts(updatedTopics);
+          }
+        }
+
+        if (attempts === MAX_ATTEMPTS_TO_GENERATE_TOPICS && !isPosts) {
+          return posts;
+        }
       }
 
-      // Check the length of the post and update it if necessary
-      const checkedPost = await this.checkAndUpdatePost({
-        post: chiefEditorResult,
-        threadId: chiefEditorThread.id,
-        assistantId: chiefEditor.id,
-      });
-
-      result['success'] = true;
-      result['theme'] = headOfDepartmentResult;
-      result['post'] = checkedPost;
-      result['postLongVersion'] = chiefEditorResult;
-
-      return result;
+      return posts;
     } catch (error) {
-      return result;
+      console.log('error', error);
     }
   }
 
