@@ -2,7 +2,7 @@
 
 ## How to start
 
-Create .env :
+Create .env:
 
 ## Telegram
 
